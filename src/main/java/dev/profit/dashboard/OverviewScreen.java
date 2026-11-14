@@ -1521,10 +1521,9 @@ public class OverviewScreen extends Screen {
                     hexBox = new EditBox(font, -4000, -4000, 80, 12, Component.literal("Accent"));   // hidden: drawn by us
                     hexBox.setMaxLength(7);
                     hexBox.setValue(Settings.hex(Settings.S.accent));
-                    hexBox.setFilter(v -> v.matches("#?[0-9a-fA-F]{0,6}"));
                     hexBox.setResponder(v -> {
                         String h = v.startsWith("#") ? v.substring(1) : v;
-                        if (h.length() == 6) {
+                        if (h.matches("[0-9a-fA-F]{6}")) {
                             Settings.applyAccent(Integer.parseInt(h, 16));
                             Settings.save();
                         }
