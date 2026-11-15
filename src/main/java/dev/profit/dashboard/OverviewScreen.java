@@ -359,7 +359,7 @@ public class OverviewScreen extends Screen {
     private int bottomY() { return contentBottom() - bottomH(); }
     private int[] feedBox() {
         int y = cardsY() + cardsH() + 8, h = Math.max(70, bottomY() - 8 - y);
-        int bw = (fw - 28) * 34 / 100;
+        int bw = (fw - 28) * 38 / 100;
         return new int[]{fx + 10, y, bw, h};
     }
     private int[] chartBox() {
@@ -412,6 +412,8 @@ public class OverviewScreen extends Screen {
             default -> drawStreamer(g, mouseX, mouseY);
         }
         g.pose().popMatrix();
+        // Christmas lights hanging along the bottom of the header, on top of everything
+        Scenes.stringLights(g, fx + 1, fy + 26, fw - 3, System.currentTimeMillis() / 1000.0);
         revealCurtain(g);
         text(g, "Display only. Data is read from your chat, nothing is sent to the server.", fx + 10, fy + fh - 11, DIM, 0.7f, false);
     }
@@ -567,14 +569,22 @@ public class OverviewScreen extends Screen {
         // full-width rounded banner; it runs a little under the cards so the bust has no gap below it
         box(g, fx + 10, wy - 8, fw - 20, cardsY() + 6 - (wy - 8), PANEL, BORDER);
         topGlow(g, fx + 10, wy - 8, fw - 20, PURPLE);
+        // Santa and his reindeer fly across the banner every 25 seconds
+        Scenes.sleighAcross(g, fx + 12, wy + 10, fw - 24, System.currentTimeMillis() / 1000.0, 0xFF4A5080, 25);
         if (minecraft != null && minecraft.player != null && Settings.S.skinFaces) {
             // big skin facing you, cut off at the chest by the cards drawn after it.
             // Every few seconds it glances to one side and back (left, then right next time). It doesn't follow the mouse.
-            int bx1 = fx + 14, by1 = wy - 6, bx2 = fx + 98, by2 = cardsY() + 76;
+            int bx1 = fx + 14, by1 = wy - 6, bx2 = fx + 98, by2 = cardsY() + (shortScreen() ? 44 : 52);   // head to waist shows
             float cxm = (bx1 + bx2) / 2f, cym = (by1 + by2) / 2f;
-            double t = System.currentTimeMillis() / 1000.0, cycle = 7.0, p = t % cycle;
+            double t = System.currentTimeMillis() / 1000.0, cycle = 5.0, p = t % cycle;
             int side = ((long) (t / cycle)) % 2 == 0 ? 1 : -1;
-            double glance = p < 4.5 ? 0 : Math.sin(Math.PI * Math.min(1.0, (p - 4.5) / 2.0));   // 0 -> 1 -> 0 over 2 s
+            // quick turn: 0.3 s to look over, hold 1.4 s, 0.3 s back
+            double q = p - 3.0, glance;
+            if (q < 0) glance = 0;
+            else if (q < 0.3) glance = q / 0.3;
+            else if (q < 1.7) glance = 1;
+            else glance = Math.max(0, (2.0 - q) / 0.3);
+            glance = glance * glance * (3 - 2 * glance);   // smooth start and stop
             float lookAtX = cxm + (float) (side * 32 * glance);   // sideways only, so the body never tilts
             InventoryScreen.extractEntityInInventoryFollowsMouse(g, bx1, by1, bx2, by2, shortScreen() ? 44 : 52, 0.0625f,
                     lookAtX, cym, preview());
@@ -637,7 +647,7 @@ public class OverviewScreen extends Screen {
             boolean in = p.paidYou > 0;
             if (filter == 0 || (filter == 1 && in) || (filter == 2 && !in)) feed.add(p);
         }
-        int rowH = 19, ry = fb[1] + 28, rows = Math.max(0, (fb[1] + fb[3] - 4 - ry) / rowH);
+        int rowH = 25, ry = fb[1] + 28, rows = Math.max(0, (fb[1] + fb[3] - 4 - ry) / rowH);
         scroll = Math.max(0, Math.min(scroll, Math.max(0, feed.size() - rows)));
         scrollbar(g, fb[0] + fb[2] - 5, ry - 2, fb[1] + fb[3] - 4 - ry, rows, feed.size());
         for (int i = 0; i < Math.min(rows, feed.size() - scroll); i++) {
@@ -645,16 +655,15 @@ public class OverviewScreen extends Screen {
             boolean in = p.paidYou > 0;
             int y = ry + i * rowH;
             if (i > 0) g.fill(fb[0] + 8, y - 3, fb[0] + fb[2] - 10, y - 2, alpha(BORDER, 200));
-            text(g, clock(p.ts), fb[0] + 10, y + 4, DIM, 0.62f, false);
-            int ix = fb[0] + 10 + w("00:00 pm", 0.62f) + 6;
-            face(g, p.name, ix, y + 1, 11);
+            text(g, clock(p.ts), fb[0] + 10, y + 6, DIM, 0.66f, false);
+            int ix = fb[0] + 10 + w("00:00 pm", 0.66f) + 8;               // left: time + head
+            face(g, p.name, ix, y + 3, 12);
             String amt = signedMoney(in ? p.paidYou : -p.youPaid);
-            int aw = wb(amt, 0.74f);
-            String nm = p.name;
-            while (nm.length() > 3 && wb(nm, 0.74f) > fb[0] + fb[2] - 18 - aw - (ix + 15)) nm = nm.substring(0, nm.length() - 2) + ".";
-            text(g, nm, ix + 15, y, TEXT, 0.74f, true);
-            text(g, in ? "paid you" : "you paid", ix + 15, y + 9, DIM, 0.6f, false);
-            text(g, amt, fb[0] + fb[2] - 10 - aw, y + 4, in ? GREEN : RED, 0.74f, true);
+            int aw = wb(amt, 0.8f), ax = fb[0] + fb[2] - 12 - aw;          // right: amount
+            int nx0 = ix + 17, nameMax = ax - 8 - nx0;                        // middle: what's left, 8 px gap
+            text(g, fitText(p.name, nameMax, 0.8f, true), nx0, y + 1, TEXT, 0.8f, true);
+            text(g, fitText(in ? "paid you" : "you paid", nameMax, 0.66f, false), nx0, y + 12, DIM, 0.66f, false);
+            text(g, amt, ax, y + 6, in ? GREEN : RED, 0.8f, true);
         }
         if (feed.isEmpty()) text(g, "No payments in this range", fb[0] + 10, ry + 2, DIM, 0.85f, false);
 
@@ -664,9 +673,10 @@ public class OverviewScreen extends Screen {
         topGlow(g, cb[0], cb[1], cb[2], PURPLE);
         int capW = caps(g, "BALANCE", cb[0] + 12, cb[1] + 10, TEXT);
         String span = switch (range) { case 0 -> "this session"; case 1 -> "last 24 hours"; case 2 -> "last 7 days"; case 3 -> "last 30 days"; default -> "all time"; };
-        text(g, span, cb[0] + 20 + capW, cb[1] + 11, DIM, 0.66f, false);
         String big = bv < 0 ? "$---" : Money.format(bv);
-        text(g, big, cb[0] + cb[2] - 12 - wb(big, 1.4f), cb[1] + 8, TEXT, 1.4f, true);
+        int bigX = cb[0] + cb[2] - 12 - wb(big, 1.4f);
+        if (cb[0] + 20 + capW + w(span, 0.66f) + 12 < bigX) text(g, span, cb[0] + 20 + capW, cb[1] + 11, DIM, 0.66f, false);
+        text(g, big, bigX, cb[1] + 8, TEXT, 1.4f, true);
         int chX = cb[0] + 12, chY = cb[1] + 34, chW = cb[2] - 24, chH = cb[3] - 46;
         if (balVals.length < 2) {
             text(g, bv < 0 ? "Type /bal (or run the Balance HUD) to start the chart" : "The chart fills in as your balance changes",
@@ -715,7 +725,7 @@ public class OverviewScreen extends Screen {
         String amt = signedMoney(theirNet);
         int aw = wb(amt, 0.8f);
         String nm = name;
-        while (nm.length() > 3 && wb(nm, 0.8f) > w - 34 - aw) nm = nm.substring(0, nm.length() - 2) + ".";
+        while (nm.length() > 3 && wb(nm, 0.8f) > w - 38 - aw) nm = nm.substring(0, nm.length() - 2) + ".";
         text(g, nm, x + 30, y + 2, TEXT, 0.8f, true);
         text(g, amt, x + w - aw, y + 2, col, 0.8f, true);
         int bar = (int) ((w - 12) * Math.min(1.0, Math.abs(theirNet) / (double) max));
@@ -1118,7 +1128,8 @@ public class OverviewScreen extends Screen {
         for (int i = 0; i < 10; i++)                                               // soft glow fading down from it
             g.fill(x + 1, y + 2 + i, x + cw - 1, y + 3 + i, alpha(lineColor, 26 - i * 2));
         caps(g, fitText(label, cw - 20, 0.76f, true), x + 10, y + 10, MUTED);
-        text(g, fitText(value, cw - 20, 1.5f, true), x + 10, y + 24, valueColor, 1.5f, true);
+        float vs = wb(value, 1.5f) <= cw - 20 ? 1.5f : wb(value, 1.25f) <= cw - 20 ? 1.25f : 1.0f;   // shrink big numbers to fit
+        text(g, fitText(value, cw - 20, vs, true), x + 10, y + 24 + (int) ((1.5f - vs) * 6), valueColor, vs, true);
         text(g, fitText(sub, cw - 20, 0.7f, false), x + 10, y + 44, subColor, 0.7f, false);
         int sx = x + cw * 40 / 100, sw = x + cw - 10 - sx, sy = y + ch - 24, sh = 16;
         if (series != null && series.length > 1) thinLine(g, series, sx, sy, sw, sh, lineColor);

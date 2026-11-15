@@ -270,7 +270,7 @@ public final class Scenes {
     }
 
     /** Wire along the top edge with colored bulbs that twinkle. */
-    private static void stringLights(GuiGraphicsExtractor g, int x, int y, int w, double t) {
+    public static void stringLights(GuiGraphicsExtractor g, int x, int y, int w, double t) {
         int[] cols = {0xFFFF5A6E, 0xFF4ADE80, 0xFF5B8CFF, 0xFFFFD25A, 0xFFC08AFF};
         int span = 64;
         for (int px = 0; px < w; px += 2) {
@@ -327,31 +327,51 @@ public final class Scenes {
         }
     }
 
-    /** Santa's sleigh with reindeer crossing the sky every 40 seconds. */
+    /** Santa's sleigh with reindeer crossing the sky every 40 seconds (Winter Pine scene). */
     private static void sleigh(GuiGraphicsExtractor g, int x, int y, int w, int h, double t) {
-        double cycle = 40, p = (t % cycle) / 14.0;   // 14 s to cross, then a break
+        sleighAcross(g, x, y + h / 8, w, t, 0xFF140E2A, 40);
+    }
+
+    private static int clipL = Integer.MIN_VALUE, clipR = Integer.MAX_VALUE;
+
+    /** fill() that stays between clipL and clipR, so the sleigh never draws outside its card. */
+    private static void cfill(GuiGraphicsExtractor g, int x0, int y0, int x1, int y1, int c) {
+        x0 = Math.max(x0, clipL);
+        x1 = Math.min(x1, clipR);
+        if (x1 > x0) g.fill(x0, y0, x1, y1, c);
+    }
+
+    /**
+     * Santa and three reindeer flying right to left across x..x+w at height y, once every cycle seconds
+     * (14 s to cross). Nothing is drawn outside x..x+w.
+     */
+    public static void sleighAcross(GuiGraphicsExtractor g, int x, int y, int w, double t, int c, double cycle) {
+        double p = (t % cycle) / 14.0;
         if (p > 1) return;
-        int c = 0xFF140E2A;
-        int sx = x + w + 60 - (int) (p * (w + 140)), sy = y + h / 8 + (int) (Math.sin(p * Math.PI * 2) * 6);
+        clipL = x;
+        clipR = x + w;
+        int sx = x + w + 60 - (int) (p * (w + 140)), sy = y + (int) (Math.sin(p * Math.PI * 2) * 6);
         // sleigh: body, curled front, runner
-        g.fill(sx + 22, sy - 4, sx + 38, sy + 3, c);
-        g.fill(sx + 20, sy - 1, sx + 23, sy + 3, c);
-        g.fill(sx + 34, sy - 8, sx + 38, sy - 4, c);
-        g.fill(sx + 20, sy + 5, sx + 40, sy + 6, c);
-        g.fill(sx + 27, sy - 9, sx + 32, sy - 4, c);   // santa
-        g.fill(sx + 28, sy - 12, sx + 31, sy - 9, c);
+        cfill(g, sx + 22, sy - 4, sx + 38, sy + 3, c);
+        cfill(g, sx + 20, sy - 1, sx + 23, sy + 3, c);
+        cfill(g, sx + 34, sy - 8, sx + 38, sy - 4, c);
+        cfill(g, sx + 20, sy + 5, sx + 40, sy + 6, c);
+        cfill(g, sx + 27, sy - 9, sx + 32, sy - 4, c);   // santa
+        cfill(g, sx + 28, sy - 12, sx + 31, sy - 9, c);
         // reindeer ahead (to the left), legs stepping
         for (int k = 0; k < 3; k++) {
             int rx = sx - k * 16, ry = sy - 2 + (int) (Math.sin(t * 6 + k) * 1.5);
-            g.fill(rx + 2, ry - 3, rx + 12, ry + 1, c);              // body
-            g.fill(rx, ry - 7, rx + 3, ry - 2, c);                   // neck and head
-            g.fill(rx - 1, ry - 10, rx, ry - 7, c);                  // antlers
-            g.fill(rx + 2, ry - 10, rx + 3, ry - 7, c);
+            cfill(g, rx + 2, ry - 3, rx + 12, ry + 1, c);              // body
+            cfill(g, rx, ry - 7, rx + 3, ry - 2, c);                   // neck and head
+            cfill(g, rx - 1, ry - 10, rx, ry - 7, c);                  // antlers
+            cfill(g, rx + 2, ry - 10, rx + 3, ry - 7, c);
             boolean step = Math.sin(t * 10 + k) > 0;
-            g.fill(rx + 3, ry + 1, rx + 4, ry + (step ? 4 : 3), c);
-            g.fill(rx + 10, ry + 1, rx + 11, ry + (step ? 3 : 4), c);
-            g.fill(rx + 12, ry - 2, rx + 20, ry - 1, alpha(0x140E2A, 160));   // reins
+            cfill(g, rx + 3, ry + 1, rx + 4, ry + (step ? 4 : 3), c);
+            cfill(g, rx + 10, ry + 1, rx + 11, ry + (step ? 3 : 4), c);
+            cfill(g, rx + 12, ry - 2, rx + 20, ry - 1, alpha(c, 160));   // reins
         }
+        clipL = Integer.MIN_VALUE;
+        clipR = Integer.MAX_VALUE;
     }
 
     private static void islandWithPalms(GuiGraphicsExtractor g, int cx, int baseY, int iw, int h, int color, int palms, double t) {
