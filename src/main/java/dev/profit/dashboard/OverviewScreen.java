@@ -385,9 +385,6 @@ public class OverviewScreen extends Screen {
     }
 
     private int lastMouseX, lastMouseY;
-    private int lookMx = Integer.MIN_VALUE, lookMy;   // welcome skin: where it's looking
-    private long lookMovedAt = 0;
-    private float lookX = Float.NaN, lookY;
 
     @Override
     public void extractRenderState(GuiGraphicsExtractor g, int mouseX, int mouseY, float delta) {
@@ -567,26 +564,20 @@ public class OverviewScreen extends Screen {
         String me = minecraft != null ? minecraft.getUser().getName() : "you";
         int wy = welcomeY();
         if (minecraft != null && minecraft.player != null && Settings.S.skinFaces) {
-            // big skin, cut off at the chest: the cards drawn after it cover the lower half
-            int bx1 = fx + 10, by1 = wy - 10, bx2 = fx + 70, by2 = cardsY() + 60;
-            long nowMs = System.currentTimeMillis();
-            if (mouseX != lookMx || mouseY != lookMy) { lookMx = mouseX; lookMy = mouseY; lookMovedAt = nowMs; }
-            float cxm = (bx1 + bx2) / 2f, cym = (by1 + by2) / 2f, tx, ty;
-            if (nowMs - lookMovedAt < 2500) { tx = mouseX; ty = mouseY; }   // you're moving the mouse: watch it
-            else {                                                           // idle: look around slowly
-                double t = nowMs / 1000.0;
-                tx = cxm + (float) (Math.sin(t * 0.6) * 70 + Math.sin(t * 1.7) * 18);
-                ty = cym - 30 + (float) (Math.sin(t * 0.45) * 14);
-            }
-            if (Float.isNaN(lookX)) { lookX = tx; lookY = ty; }
-            lookX += (tx - lookX) * 0.08f;   // ease, so the head turns smoothly
-            lookY += (ty - lookY) * 0.08f;
-            InventoryScreen.extractEntityInInventoryFollowsMouse(g, bx1, by1, bx2, by2, shortScreen() ? 34 : 40, 0.0625f,
-                    lookX, lookY, preview());
+            // big skin facing you, cut off at the chest by the cards drawn after it.
+            // Every few seconds it glances to one side and back (left, then right next time). It doesn't follow the mouse.
+            int bx1 = fx + 8, by1 = wy - 12, bx2 = fx + 92, by2 = cardsY() + 70;
+            float cxm = (bx1 + bx2) / 2f, cym = (by1 + by2) / 2f;
+            double t = System.currentTimeMillis() / 1000.0, cycle = 7.0, p = t % cycle;
+            int side = ((long) (t / cycle)) % 2 == 0 ? 1 : -1;
+            double glance = p < 4.5 ? 0 : Math.sin(Math.PI * Math.min(1.0, (p - 4.5) / 2.0));   // 0 -> 1 -> 0 over 2 s
+            float lookAtX = cxm + (float) (side * 32 * glance);   // sideways only, so the body never tilts
+            InventoryScreen.extractEntityInInventoryFollowsMouse(g, bx1, by1, bx2, by2, shortScreen() ? 44 : 52, 0.0625f,
+                    lookAtX, cym, preview());
         } else {
             face(g, me, fx + 16, wy + 4, 30);
         }
-        int nx = fx + 78;
+        int nx = fx + 98;
         text(g, "Welcome, ", nx, wy + 8, TEXT, 1.6f, true);
         String shown = Settings.S.displayName == null || Settings.S.displayName.isBlank() ? me : Settings.S.displayName;
         glowText(g, shown, nx + wb("Welcome, ", 1.6f), wy + 8, PURPLE_LIGHT, 1.6f);
