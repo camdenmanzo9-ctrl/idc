@@ -27,15 +27,16 @@ import java.util.function.Consumer;
 public class OverviewScreen extends Screen {
     // ---------------- colors ----------------
     // Fixed dark obsidian panels; only the accent follows your color (Streamer tab > Accent color).
-    private static final int BG = 0xFF060509, FRAME = 0xFF0D0B14, PANEL = 0xFF12101C, BORDER = 0xFF221E33;
-    private static int PURPLE = 0xFF8B5CF6, PURPLE_LIGHT = 0xFFB794F6;
-    private static final int TEXT = 0xFFF2F0FA, MUTED = 0xFFADA9C4, DIM = 0xFF8A86A3,
-            GOLD = 0xFFE0B24A, BLUE = 0xFF7B8CFF, RED = 0xFFFF5A6E, GREEN = 0xFF4ADE80, AMBER = 0xFFE0A030;
+    // Canvas #0D0E14, cards and sidebar #13151F, borders / inactive pills #1C1E2B
+    private static final int BG = 0xFF0D0E14, FRAME = 0xFF13151F, PANEL = 0xFF13151F, BORDER = 0xFF1C1E2B, SIDEBAR = 0xFF13151F;
+    private static int PURPLE = 0xFF6C5CE7, PURPLE_LIGHT = 0xFF8C7AE6;   // indigo accent, periwinkle for your name
+    private static final int TEXT = 0xFFFFFFFF, MUTED = 0xFF8A8F9E, DIM = 0xFF6E7383,
+            GOLD = 0xFFF1C40F, BLUE = 0xFF7B8CFF, RED = 0xFFFF5E57, GREEN = 0xFF2ECC71, AMBER = 0xFFE0A030;
 
     /** Load the accent color. */
     private static void applyPalette() {
-        PURPLE = 0xFF000000 | (Settings.S.accent & 0xFFFFFF);
-        PURPLE_LIGHT = mixColor(PURPLE, 0xFFFFFFFF, 0.40f);
+        PURPLE = 0xFF6C5CE7;        // one fixed accent, no color options
+        PURPLE_LIGHT = 0xFF8C7AE6;
     }
 
     /** Text color that reads on top of the accent (dark text on light accents). */
@@ -380,7 +381,7 @@ public class OverviewScreen extends Screen {
         g.fill(fx, fy + 1, fx + fw - 1, fy + 26, alpha(FRAME, 0xF4));
         g.fill(fx, fy + 26, fx + fw - 1, fy + 27, BORDER);
         g.fill(fx, fy + fh - 16, fx + fw - 1, fy + fh - 1, alpha(FRAME, 0xD8));
-        round(g, ox + 1, fy + 1, side, fh - 2, 5, alpha(0xFF08070D, 0xF6));
+        round(g, ox + 1, fy + 1, side, fh - 2, 5, SIDEBAR);
         g.fill(ox + side, fy + 1, ox + side + 1, fy + fh - 1, BORDER);
     }
 
@@ -465,9 +466,9 @@ public class OverviewScreen extends Screen {
         int x = b.getX(), y = b.getY(), bw = b.getWidth(), bh = b.getHeight();
         boolean hot = over(b, mx, my);
         if (on) {
-            round(g, x, y, bw, bh, 3, mixColor(0xFF08070D, PURPLE, 0.22f));
+            round(g, x, y, bw, bh, 3, mixColor(SIDEBAR, PURPLE, 0.22f));
             g.fill(x, y + 2, x + 2, y + bh - 2, PURPLE);
-        } else if (hot) round(g, x, y, bw, bh, 3, mixColor(0xFF08070D, PURPLE, 0.10f));
+        } else if (hot) round(g, x, y, bw, bh, 3, mixColor(SIDEBAR, PURPLE, 0.10f));
         int c = on ? TEXT : hot ? TEXT : MUTED;
         sideIcon(g, icon, x + 8, y + bh / 2, on ? PURPLE_LIGHT : c);
         text(g, label, x + 22, y + (bh - 7) / 2, c, 0.8f, on);
@@ -502,7 +503,7 @@ public class OverviewScreen extends Screen {
             default -> {   // settings: gear-ish
                 g.fill(x + 2, y + 2, x + 6, y + 6, c);
                 g.fill(x + 3, y, x + 5, y + 8, c); g.fill(x, y + 3, x + 8, y + 5, c);
-                g.fill(x + 3, y + 3, x + 5, y + 5, 0xFF08070D);
+                g.fill(x + 3, y + 3, x + 5, y + 5, SIDEBAR);
             }
         }
     }
@@ -563,10 +564,13 @@ public class OverviewScreen extends Screen {
     private void drawOverview(GuiGraphicsExtractor g, int mouseX, int mouseY) {
         String me = minecraft != null ? minecraft.getUser().getName() : "you";
         int wy = welcomeY();
+        // full-width rounded banner; it runs a little under the cards so the bust has no gap below it
+        box(g, fx + 10, wy - 8, fw - 20, cardsY() + 6 - (wy - 8), PANEL, BORDER);
+        topGlow(g, fx + 10, wy - 8, fw - 20, PURPLE);
         if (minecraft != null && minecraft.player != null && Settings.S.skinFaces) {
             // big skin facing you, cut off at the chest by the cards drawn after it.
             // Every few seconds it glances to one side and back (left, then right next time). It doesn't follow the mouse.
-            int bx1 = fx + 8, by1 = wy - 12, bx2 = fx + 92, by2 = cardsY() + 70;
+            int bx1 = fx + 14, by1 = wy - 6, bx2 = fx + 98, by2 = cardsY() + 76;
             float cxm = (bx1 + bx2) / 2f, cym = (by1 + by2) / 2f;
             double t = System.currentTimeMillis() / 1000.0, cycle = 7.0, p = t % cycle;
             int side = ((long) (t / cycle)) % 2 == 0 ? 1 : -1;
@@ -577,13 +581,11 @@ public class OverviewScreen extends Screen {
         } else {
             face(g, me, fx + 16, wy + 4, 30);
         }
-        int nx = fx + 98;
+        int nx = fx + 104;
         text(g, "Welcome, ", nx, wy + 8, TEXT, 1.6f, true);
         String shown = Settings.S.displayName == null || Settings.S.displayName.isBlank() ? me : Settings.S.displayName;
         glowText(g, shown, nx + wb("Welcome, ", 1.6f), wy + 8, PURPLE_LIGHT, 1.6f);
-        long d = daysToChristmas();
-        String sub = (d == 0 ? "Merry Christmas! " : d + (d == 1 ? " day" : " days") + " to Christmas. ") + "Have a great time on DonutSMP!";
-        text(g, sub, nx, wy + 30, MUTED, 0.75f, false);
+        text(g, "Have a great time on DonutSMP!", nx, wy + 30, MUTED, 0.75f, false);
 
         List<PaymentLedger.Payment> pays = rangePayments();
         long net = 0;
@@ -1545,7 +1547,6 @@ public class OverviewScreen extends Screen {
                 () -> s.payAsk, v -> s.payAsk = v));
         r.add(new SRow("STREAMER KEYBIND", "Opens the dashboard straight on this tab. Click, then press a key (Backspace clears).",
                 K_KEY, null, null));
-        r.add(new SRow("ACCENT COLOR", "Recolors buttons, pills, borders and graph lines. Type a hex color.", K_ACCENT, null, null));
         r.add(new SRow("BACKGROUND", "Animated scene behind the dashboard", K_SCENE, null, null));
         return r;
     }
