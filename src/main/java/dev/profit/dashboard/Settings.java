@@ -153,6 +153,7 @@ public final class Settings {
             if (Files.exists(FILE)) {
                 Settings s = GSON.fromJson(Files.readString(FILE), Settings.class);
                 if (s != null) S = s;
+                if (S.accent == 0x7CFF3A) { Settings.applyAccent(0x8B5CF6); save(); }   // old green default -> purple
                 // If up / down / even are all one color you can't tell them apart: put them back
                 if (S.hudGain == S.hudLoss || S.hudGain == S.hudZero || S.hudLoss == S.hudZero) {
                     S.hudGain = 0x4ADE80;

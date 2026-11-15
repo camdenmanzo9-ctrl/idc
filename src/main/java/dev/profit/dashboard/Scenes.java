@@ -10,7 +10,7 @@ public final class Scenes {
     private Scenes() {}
 
     public static final String[] NAMES = {
-            "Winter Pine & Lights", "Sunset Palms", "Dusk", "Sakura", "Maple", "Snowpine", "Savanna", "Moonbloom"};
+            "Midnight Pines", "Winter Pine & Lights", "Sunset Palms", "Dusk", "Sakura", "Maple", "Snowpine", "Savanna", "Moonbloom"};
 
     /** Stable pseudo-random number in [0, 1) for item i. */
     private static double rnd(int i, int salt) {
@@ -32,18 +32,31 @@ public final class Scenes {
         if (w <= 0 || h <= 0) return;
         double t = (now % 3_600_000L) / 1000.0;   // seconds, wraps every hour
         switch (Math.floorMod(idx, NAMES.length)) {
-            case 0 -> winterPine(g, x, y, w, h, t);
-            case 1 -> sunsetPalms(g, x, y, w, h, t);
-            case 2 -> dusk(g, x, y, w, h, t);
-            case 3 -> sakura(g, x, y, w, h, t);
-            case 4 -> maple(g, x, y, w, h, t);
-            case 5 -> snowpine(g, x, y, w, h, t);
-            case 6 -> savanna(g, x, y, w, h, t);
+            case 0 -> midnightPines(g, x, y, w, h, t);
+            case 1 -> winterPine(g, x, y, w, h, t);
+            case 2 -> sunsetPalms(g, x, y, w, h, t);
+            case 3 -> dusk(g, x, y, w, h, t);
+            case 4 -> sakura(g, x, y, w, h, t);
+            case 5 -> maple(g, x, y, w, h, t);
+            case 6 -> snowpine(g, x, y, w, h, t);
+            case 7 -> savanna(g, x, y, w, h, t);
             default -> moonbloom(g, x, y, w, h, t);
         }
     }
 
     // ================= scenes =================
+
+    /** Plain dark purple with faint dark pine silhouettes along the bottom and a few slow specks. */
+    private static void midnightPines(GuiGraphicsExtractor g, int x, int y, int w, int h, double t) {
+        sky(g, x, y, w, h, 0x2C2063, 0x1A1340);
+        pineRow(g, x, w, y + h, h * 42 / 100, 11, 0xFF221A4C, 0xFF221A4C, 7, t);
+        pineRow(g, x, w, y + h + h / 20, h * 50 / 100, 7, 0xFF171134, 0xFF171134, 8, t);
+        for (int i = 0; i < 24; i++) {   // faint drifting specks
+            double sy = (rnd(i, 91) * h + t * (3 + rnd(i, 92) * 4)) % h;
+            int px = x + (int) (rnd(i, 93) * w), py = y + (int) sy;
+            g.fill(px, py, px + 1, py + 1, alpha(0xFFFFFF, 50 + (int) (rnd(i, 94) * 60)));
+        }
+    }
 
     private static void winterPine(GuiGraphicsExtractor g, int x, int y, int w, int h, double t) {
         sky(g, x, y, w, h, 0x1A1240, 0x3B2C80);

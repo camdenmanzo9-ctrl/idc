@@ -36,6 +36,8 @@ public final class PaymentListener {
     public record Parsed(String name, String amountText, boolean incoming) {}
 
     public static Parsed parse(String text) {
+        // The server can use no-break spaces (e.g. "$\u00A01"), which \\s doesn't match: turn every space into a plain one
+        text = text.replace('\u00A0', ' ').replace('\u202F', ' ').replaceAll("\\s+", " ");
         Matcher m;
         if ((m = OUT.matcher(text)).find()) return new Parsed(m.group(1), m.group(2), false);
         if ((m = OUT2.matcher(text)).find()) return new Parsed(m.group(2), m.group(1), false);

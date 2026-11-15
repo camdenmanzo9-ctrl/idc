@@ -358,7 +358,7 @@ public class OverviewScreen extends Screen {
     private int bottomY() { return contentBottom() - bottomH(); }
     private int[] feedBox() {
         int y = cardsY() + cardsH() + 8, h = Math.max(70, bottomY() - 8 - y);
-        int bw = (fw - 28) * 40 / 100;
+        int bw = (fw - 28) * 34 / 100;
         return new int[]{fx + 10, y, bw, h};
     }
     private int[] chartBox() {
@@ -370,6 +370,8 @@ public class OverviewScreen extends Screen {
     // ---------------- render ----------------
     @Override
     public void extractBackground(GuiGraphicsExtractor g, int mouseX, int mouseY, float delta) {
+        // solid dark fill over the whole screen, so the game doesn't show anywhere behind the menu
+        g.fill(0, 0, width, height, BG);
         // outer frame
         round(g, ox, fy, ow, fh, 6, alpha(BORDER, 0xC0));
         // animated scene behind the content
@@ -383,6 +385,9 @@ public class OverviewScreen extends Screen {
     }
 
     private int lastMouseX, lastMouseY;
+    private int lookMx = Integer.MIN_VALUE, lookMy;   // welcome skin: where it's looking
+    private long lookMovedAt = 0;
+    private float lookX = Float.NaN, lookY;
 
     @Override
     public void extractRenderState(GuiGraphicsExtractor g, int mouseX, int mouseY, float delta) {
@@ -562,13 +567,26 @@ public class OverviewScreen extends Screen {
         String me = minecraft != null ? minecraft.getUser().getName() : "you";
         int wy = welcomeY();
         if (minecraft != null && minecraft.player != null && Settings.S.skinFaces) {
-            int bx1 = fx + 10, by1 = wy - 4, bx2 = fx + 54, by2 = wy + (shortScreen() ? 38 : 46);
-            InventoryScreen.extractEntityInInventoryFollowsMouse(g, bx1, by1, bx2, by2, 22, 0.0625f,
-                    (bx1 + bx2) / 2f, (by1 + by2) / 2f, preview());
+            // big skin, cut off at the chest: the cards drawn after it cover the lower half
+            int bx1 = fx + 10, by1 = wy - 10, bx2 = fx + 70, by2 = cardsY() + 60;
+            long nowMs = System.currentTimeMillis();
+            if (mouseX != lookMx || mouseY != lookMy) { lookMx = mouseX; lookMy = mouseY; lookMovedAt = nowMs; }
+            float cxm = (bx1 + bx2) / 2f, cym = (by1 + by2) / 2f, tx, ty;
+            if (nowMs - lookMovedAt < 2500) { tx = mouseX; ty = mouseY; }   // you're moving the mouse: watch it
+            else {                                                           // idle: look around slowly
+                double t = nowMs / 1000.0;
+                tx = cxm + (float) (Math.sin(t * 0.6) * 70 + Math.sin(t * 1.7) * 18);
+                ty = cym - 30 + (float) (Math.sin(t * 0.45) * 14);
+            }
+            if (Float.isNaN(lookX)) { lookX = tx; lookY = ty; }
+            lookX += (tx - lookX) * 0.08f;   // ease, so the head turns smoothly
+            lookY += (ty - lookY) * 0.08f;
+            InventoryScreen.extractEntityInInventoryFollowsMouse(g, bx1, by1, bx2, by2, shortScreen() ? 34 : 40, 0.0625f,
+                    lookX, lookY, preview());
         } else {
             face(g, me, fx + 16, wy + 4, 30);
         }
-        int nx = fx + 62;
+        int nx = fx + 78;
         text(g, "Welcome, ", nx, wy + 8, TEXT, 1.6f, true);
         String shown = Settings.S.displayName == null || Settings.S.displayName.isBlank() ? me : Settings.S.displayName;
         glowText(g, shown, nx + wb("Welcome, ", 1.6f), wy + 8, PURPLE_LIGHT, 1.6f);
@@ -611,11 +629,12 @@ public class OverviewScreen extends Screen {
 
         long volume = 0;
         for (PaymentLedger.Entry e : PaymentLedger.entries(false)) volume += e.paidYou;
-        card(g, c4, cy, cw, ch, "VOLUME", Money.format(volume), "all time paid to you", PURPLE, TEXT, MUTED, null);
+        card(g, c4, cy, cw, ch, "VOLUME", Money.format(volume), "all time paid to you", 0xFF2DD4BF, TEXT, MUTED, null);
 
         // ---- payment feed ----
         int[] fb = feedBox();
         box(g, fb[0], fb[1], fb[2], fb[3], PANEL, BORDER);
+        topGlow(g, fb[0], fb[1], fb[2], PURPLE);
         caps(g, "PAYMENT FEED", fb[0] + 10, fb[1] + 10, TEXT);
         groupBar(g, filterButtons);
         for (int i = 0; i < filterButtons.size(); i++) pill(g, filterButtons.get(i), i == filter, mouseX, mouseY);
@@ -625,7 +644,7 @@ public class OverviewScreen extends Screen {
             boolean in = p.paidYou > 0;
             if (filter == 0 || (filter == 1 && in) || (filter == 2 && !in)) feed.add(p);
         }
-        int rowH = 23, ry = fb[1] + 30, rows = Math.max(0, (fb[1] + fb[3] - 4 - ry) / rowH);
+        int rowH = 19, ry = fb[1] + 28, rows = Math.max(0, (fb[1] + fb[3] - 4 - ry) / rowH);
         scroll = Math.max(0, Math.min(scroll, Math.max(0, feed.size() - rows)));
         scrollbar(g, fb[0] + fb[2] - 5, ry - 2, fb[1] + fb[3] - 4 - ry, rows, feed.size());
         for (int i = 0; i < Math.min(rows, feed.size() - scroll); i++) {
@@ -633,25 +652,26 @@ public class OverviewScreen extends Screen {
             boolean in = p.paidYou > 0;
             int y = ry + i * rowH;
             if (i > 0) g.fill(fb[0] + 8, y - 3, fb[0] + fb[2] - 10, y - 2, alpha(BORDER, 200));
-            text(g, clock(p.ts), fb[0] + 10, y + 5, DIM, 0.72f, false);
-            int ix = fb[0] + 10 + w("00:00 pm", 0.72f) + 6;
-            face(g, p.name, ix, y + 2, 13);
+            text(g, clock(p.ts), fb[0] + 10, y + 4, DIM, 0.62f, false);
+            int ix = fb[0] + 10 + w("00:00 pm", 0.62f) + 6;
+            face(g, p.name, ix, y + 1, 11);
             String amt = signedMoney(in ? p.paidYou : -p.youPaid);
-            int aw = wb(amt, 0.85f);
+            int aw = wb(amt, 0.74f);
             String nm = p.name;
-            while (nm.length() > 3 && wb(nm, 0.85f) > fb[0] + fb[2] - 18 - aw - (ix + 18)) nm = nm.substring(0, nm.length() - 2) + ".";
-            text(g, nm, ix + 18, y, TEXT, 0.85f, true);
-            text(g, in ? "paid you" : "you paid", ix + 18, y + 11, DIM, 0.7f, false);
-            text(g, amt, fb[0] + fb[2] - 10 - aw, y + 4, in ? GREEN : RED, 0.85f, true);
+            while (nm.length() > 3 && wb(nm, 0.74f) > fb[0] + fb[2] - 18 - aw - (ix + 15)) nm = nm.substring(0, nm.length() - 2) + ".";
+            text(g, nm, ix + 15, y, TEXT, 0.74f, true);
+            text(g, in ? "paid you" : "you paid", ix + 15, y + 9, DIM, 0.6f, false);
+            text(g, amt, fb[0] + fb[2] - 10 - aw, y + 4, in ? GREEN : RED, 0.74f, true);
         }
         if (feed.isEmpty()) text(g, "No payments in this range", fb[0] + 10, ry + 2, DIM, 0.85f, false);
 
         // ---- balance chart ----
         int[] cb = chartBox();
         box(g, cb[0], cb[1], cb[2], cb[3], PANEL, BORDER);
+        topGlow(g, cb[0], cb[1], cb[2], PURPLE);
         int capW = caps(g, "BALANCE", cb[0] + 12, cb[1] + 10, TEXT);
-        long spanDays = bal.size() < 2 ? 0 : Math.max(1, (bal.get(bal.size() - 1)[0] - bal.get(0)[0] + DAY - 1) / DAY);
-        text(g, spanDays + (spanDays == 1 ? " day of data" : " days of data"), cb[0] + 20 + capW, cb[1] + 11, DIM, 0.66f, false);
+        String span = switch (range) { case 0 -> "this session"; case 1 -> "last 24 hours"; case 2 -> "last 7 days"; case 3 -> "last 30 days"; default -> "all time"; };
+        text(g, span, cb[0] + 20 + capW, cb[1] + 11, DIM, 0.66f, false);
         String big = bv < 0 ? "$---" : Money.format(bv);
         text(g, big, cb[0] + cb[2] - 12 - wb(big, 1.4f), cb[1] + 8, TEXT, 1.4f, true);
         int chX = cb[0] + 12, chY = cb[1] + 34, chW = cb[2] - 24, chH = cb[3] - 46;
@@ -659,16 +679,7 @@ public class OverviewScreen extends Screen {
             text(g, bv < 0 ? "Type /bal (or run the Balance HUD) to start the chart" : "The chart fills in as your balance changes",
                     chX, chY + chH / 2 - 4, DIM, 0.8f, false);
         } else {
-            for (int dx = 0; dx < chW; dx += 6) {   // faint guides
-                g.fill(chX + dx, chY, chX + Math.min(chW, dx + 3), chY + 1, alpha(BORDER, 160));
-                g.fill(chX + dx, chY + chH, chX + Math.min(chW, dx + 3), chY + chH + 1, alpha(BORDER, 160));
-            }
-            smoothLine(g, balVals, chX, chY, chW, chH - 2, PURPLE);
-            long mn = Long.MAX_VALUE, mxv = Long.MIN_VALUE;
-            for (long v : balVals) { mn = Math.min(mn, v); mxv = Math.max(mxv, v); }
-            if (mxv == mn) { mxv++; mn--; }
-            int ey = chY + (int) Math.round((mxv - balVals[balVals.length - 1]) / (double) (mxv - mn) * (chH - 4));
-            round(g, chX + chW - 4, ey - 2, 6, 6, 3, PURPLE_LIGHT);
+            areaChart(g, balVals, chX, chY, chW, chH, balDown ? RED : PURPLE);
         }
 
         // ---- top winners / losers, full width ----
@@ -678,6 +689,7 @@ public class OverviewScreen extends Screen {
     private void drawWinnersLosers(GuiGraphicsExtractor g, List<PaymentLedger.Payment> pays) {
         int x = fx + 10, y = bottomY(), bw = fw - 20, bh = bottomH();
         box(g, x, y, bw, bh, PANEL, BORDER);
+        topGlow(g, x, y, bw, PURPLE);
         int capW = caps(g, "TOP WINNERS / LOSERS", x + 12, y + 9, TEXT);
         text(g, rangeWord(), x + 20 + capW, y + 10, DIM, 0.66f, false);
 
@@ -1109,12 +1121,64 @@ public class OverviewScreen extends Screen {
     private void card(GuiGraphicsExtractor g, int x, int y, int cw, int ch, String label, String value, String sub,
                       int lineColor, int valueColor, int subColor, long[] series) {
         box(g, x, y, cw, ch, PANEL, BORDER);
-        softGlow(g, x + cw * 60 / 100, y + ch / 2, cw / 3, ch / 2 - 4, lineColor, 14);
-        caps(g, fitText(label, cw - 20, 0.76f, true), x + 10, y + 8, MUTED);
-        text(g, fitText(value, cw - 20, 1.5f, true), x + 10, y + 21, valueColor, 1.5f, true);
-        text(g, fitText(sub, cw - 20, 0.72f, false), x + 10, y + 39, subColor, 0.72f, false);
-        int sy = y + 51, sh = ch - 57;
-        if (series != null && sh >= 8) smoothLine(g, series, x + 10, sy, cw - 20, sh, lineColor);
+        g.fill(x + 1, y, x + cw - 1, y + 2, lineColor);                          // colored top edge
+        for (int i = 0; i < 10; i++)                                               // soft glow fading down from it
+            g.fill(x + 1, y + 2 + i, x + cw - 1, y + 3 + i, alpha(lineColor, 26 - i * 2));
+        caps(g, fitText(label, cw - 20, 0.76f, true), x + 10, y + 10, MUTED);
+        text(g, fitText(value, cw - 20, 1.5f, true), x + 10, y + 24, valueColor, 1.5f, true);
+        text(g, fitText(sub, cw - 20, 0.7f, false), x + 10, y + 44, subColor, 0.7f, false);
+        int sx = x + cw * 40 / 100, sw = x + cw - 10 - sx, sy = y + ch - 24, sh = 16;
+        if (series != null && series.length > 1) thinLine(g, series, sx, sy, sw, sh, lineColor);
+    }
+
+    /** Faint glow fading down from the top edge of a panel. */
+    private static void topGlow(GuiGraphicsExtractor g, int x, int y, int w, int color) {
+        g.fill(x + 1, y, x + w - 1, y + 1, alpha(color, 120));
+        for (int i = 0; i < 14; i++) g.fill(x + 1, y + 1 + i, x + w - 1, y + 2 + i, alpha(color, 22 - i * 3 / 2));
+    }
+
+    /** Thin 1 px line with a faint fill under it (card sparklines). */
+    private void thinLine(GuiGraphicsExtractor g, long[] vals, int x, int y, int w, int h, int color) {
+        long min = Long.MAX_VALUE, max = Long.MIN_VALUE;
+        for (long v : vals) { min = Math.min(min, v); max = Math.max(max, v); }
+        if (max == min) { max++; min--; }
+        int prev = Integer.MIN_VALUE;
+        for (int px = 0; px < w; px++) {
+            double t = (double) px * (vals.length - 1) / Math.max(1, w - 1);
+            int i0 = (int) t, i1 = Math.min(vals.length - 1, i0 + 1);
+            double f = t - i0, e = (1 - Math.cos(Math.PI * f)) / 2;
+            double v = vals[i0] + (vals[i1] - vals[i0]) * e;
+            int yy = y + (int) Math.round((max - v) / (double) (max - min) * (h - 1));
+            int a = prev == Integer.MIN_VALUE ? yy : prev;
+            g.fill(x + px, yy + 1, x + px + 1, y + h, alpha(color, 18));
+            g.fill(x + px, Math.min(a, yy), x + px + 1, Math.max(a, yy) + 1, color);
+            prev = yy;
+        }
+    }
+
+    /** Big filled area chart: translucent fill, 1 px line, dashed guide lines. */
+    private void areaChart(GuiGraphicsExtractor g, long[] vals, int x, int y, int w, int h, int color) {
+        for (int k = 0; k <= 3; k++) {   // dashed guides
+            int gy = y + k * (h - 1) / 3;
+            for (int dx = 0; dx < w; dx += 6) g.fill(x + dx, gy, x + Math.min(w, dx + 3), gy + 1, alpha(BORDER, 170));
+        }
+        long min = Long.MAX_VALUE, max = Long.MIN_VALUE;
+        for (long v : vals) { min = Math.min(min, v); max = Math.max(max, v); }
+        if (max == min) { max++; min--; }
+        int prev = Integer.MIN_VALUE, last = y;
+        for (int px = 0; px < w; px++) {
+            double t = (double) px * (vals.length - 1) / Math.max(1, w - 1);
+            int i0 = (int) t, i1 = Math.min(vals.length - 1, i0 + 1);
+            double f = t - i0, e = (1 - Math.cos(Math.PI * f)) / 2;
+            double v = vals[i0] + (vals[i1] - vals[i0]) * e;
+            int yy = y + 4 + (int) Math.round((max - v) / (double) (max - min) * (h - 8));
+            int a = prev == Integer.MIN_VALUE ? yy : prev;
+            g.fill(x + px, yy + 1, x + px + 1, y + h, alpha(color, 85));
+            g.fill(x + px, Math.min(a, yy), x + px + 1, Math.max(a, yy) + 1, mixColor(color, 0xFFFFFFFF, 0.25f));
+            prev = yy;
+            last = yy;
+        }
+        round(g, x + w - 4, last - 3, 7, 7, 3, mixColor(color, 0xFFFFFFFF, 0.25f));   // dot at "now"
     }
 
     /** Shortens s with a dot so it fits in maxW. */
